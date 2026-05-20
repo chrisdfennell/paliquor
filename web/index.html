@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PaLiquor — Pennsylvania Bourbon Finder</title>
+  <meta name="description" content="Find bourbon &amp; whiskey across Pennsylvania Fine Wine &amp; Good Spirits stores — prices, UPCs, and availability by county and store." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">PA</span>
+        <span class="brand-text">PaLiquor<small>Pennsylvania Bourbon Finder</small></span>
+      </a>
+      <nav class="top-nav">
+        <a href="#browse">Browse</a>
+        <a href="#counties">By County</a>
+        <a href="#about">About the data</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <h1>Find bourbon across Pennsylvania</h1>
+      <p class="sub">Search the Fine Wine &amp; Good Spirits catalog by name or UPC — with prices,
+        sizes, and availability. <strong id="stat-line">Loading catalog…</strong></p>
+      <div class="searchbar">
+        <input id="search" type="search" placeholder="Search bourbon by name or UPC (e.g. Maker's Mark, 081128...)" />
+        <select id="sort">
+          <option value="name">Sort: Name</option>
+          <option value="price_asc">Price: Low to High</option>
+          <option value="price_desc">Price: High to Low</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <main class="wrap layout">
+    <aside id="counties" class="sidebar">
+      <h2>By County</h2>
+      <p class="hint">Pick a county to see its stores, then check a bottle's availability there.</p>
+      <ul id="county-list" class="county-list"></ul>
+    </aside>
+
+    <section id="browse" class="content">
+      <div id="store-banner" class="store-banner hidden"></div>
+      <div id="result-meta" class="result-meta"></div>
+      <div id="grid" class="grid"></div>
+      <div class="pager">
+        <button id="more" class="btn hidden">Load more</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- product detail drawer -->
+  <div id="drawer" class="drawer hidden" aria-hidden="true">
+    <div class="drawer-panel">
+      <button id="drawer-close" class="drawer-close" aria-label="Close">&times;</button>
+      <div id="drawer-body"></div>
+    </div>
+  </div>
+
+  <footer id="about" class="site-footer">
+    <div class="wrap">
+      <h2>About this data</h2>
+      <p id="disclosure">
+        Catalog, UPCs, prices and statewide availability are drawn from the public
+        product pages of Pennsylvania's Fine Wine &amp; Good Spirits (operated by the
+        PLCB). Per-store availability is a best-effort, on-demand lookup and may be
+        limited. This is an independent informational tool and is not affiliated with
+        or endorsed by the PLCB.
+      </p>
+      <p class="muted">Data refreshed periodically. Always confirm price and availability with the store.</p>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

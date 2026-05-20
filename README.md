@@ -59,5 +59,16 @@ copy .env.example .env   # then edit CONTACT_EMAIL
 
 python -m paliquor.cli init-db
 python -m paliquor.cli refresh-catalog        # discover + parse bourbon/whiskey
+python -m paliquor.cli import-stores          # store directory from OpenStreetMap
 uvicorn paliquor.api:app --reload             # serve API + frontend
+```
+
+### Store directory
+
+`import-stores` pulls from OpenStreetMap (free, but incomplete in some counties).
+For complete, authoritative coverage of all ~568 stores, load the official PLCB
+list — see [STORES.md](STORES.md):
+
+```powershell
+python -m paliquor.cli import-stores-csv path\to\official_stores.csv --replace
 ```
