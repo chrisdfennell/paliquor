@@ -1,49 +1,79 @@
-# PaLiquor — Pennsylvania Bourbon Finder
+# PaLiquor — Pennsylvania Bourbon & Whiskey Finder
 
 Browse Pennsylvania (Fine Wine & Good Spirits / PLCB) **bourbon & whiskey** by
-county and store, with UPCs, prices, and on-demand store availability.
+name, UPC, price, and by county/store. Built with Python + FastAPI + SQLite and
+a small vanilla-JS frontend.
 
-## Data sources & how we use them
+- **Catalog**: every bourbon (494) and the whiskey siblings — names, **UPCs**,
+  prices, sizes, and statewide availability.
+- **Store directory**: stores grouped by county, with the ability to load the
+  official PLCB store list.
+- **Availability**: statewide stock status, plus a best-effort per-store check.
 
-All data comes from publicly accessible Pennsylvania PLCB resources:
+## How data is sourced (and what's deliberately *not* done)
 
-- **Product catalog** (names, UPCs, prices): the publicly served product pages on
-  `finewineandgoodspirits.com`, which embed [schema.org `Product`](https://schema.org/Product)
-  JSON-LD — structured data published specifically for machine consumption.
-- **Product discovery**: the site's published `sitemap.xml` and category pages.
-- **Per-store inventory**: fetched **on demand** (when a user views a product) using a
-  real headless browser that runs the site's own JavaScript, then **cached** for a
-  while so we don't re-fetch repeatedly.
+Everything comes from public, legitimate sources. This project is a **polite,
+honest client** — it does **not** evade bot protection.
 
-### Operating principles (please keep these)
+| Data | Source | Method |
+|------|--------|--------|
+| Product catalog (UPCs, price, size, statewide stock) | public product pages on `finewineandgoodspirits.com` | schema.org `Product` JSON-LD + the page's embedded app-state; throttled HTTP, cached |
+| SKU discovery by category | the category pages (server-rendered) | Oracle Commerce pagination params (`Nrpp=250` + a price sort ascending/descending); the union of "cheapest 250" + "priciest 250" covers a category ≤ 500 in **two requests, no browser** |
+| Store directory | OpenStreetMap (Overpass) + FCC Census geo for counties | one query; counties derived from coordinates |
+| Store directory (authoritative) | official PLCB store list | CSV import (`import-stores-csv`) |
+| Per-store availability | best-effort live read via a real browser | on demand only, cached |
 
-This project is built to be a *polite, honest* client, not to evade anything:
+### What's gated, and why we stop there
 
-- Identifies itself with a truthful `User-Agent` including a contact address.
+The site's `/ccstore/v1/` JSON API and all JS-driven interactions (category
+"Load More", the store-locator search, true per-store inventory) sit behind
+**Akamai bot management** — they return 403 / silently fail even for a real
+*headless* browser. We deliberately do **not**:
+
+- forge Akamai sensor tokens / `_abck` cookies,
+- stealth-patch the browser to hide automation, or
+- rotate proxies to dodge bans.
+
+Consequences, stated honestly:
+
+- **Per-store shelf inventory** isn't publicly available in bulk. The public
+  data is **statewide** availability (`stockStatus`, `locationId: null`). The
+  per-store "check" is best-effort and usually degrades to the statewide signal
+  plus a link to confirm on the official site.
+- **The complete store list** isn't a clean public dataset. OSM gives ~345
+  stores (incomplete in some counties); load the official PLCB list for full
+  coverage — see **[STORES.md](STORES.md)**.
+
+### Operating principles
+
+- Honest, self-identifying `User-Agent` including a contact address.
 - Honors `robots.txt` (notably: never touches `/searchresults`).
-- Conservative, human-like request rates with caching and incremental updates.
-- **Does not** forge anti-bot tokens, rotate proxies to dodge bans, or otherwise
-  disguise automated traffic. If the site asks us to slow down or stop, we do.
+- Conservative request rate (default 2s) with on-disk caching and incremental
+  updates.
 
-> Before running this publicly, review the FWGS Terms of Use. This tool is for
-> personal/informational use (price & availability lookup).
+> Before running publicly, review the FWGS Terms of Use. This is an independent
+> informational tool for personal price/availability lookup — not affiliated
+> with or endorsed by the PLCB.
 
 ## Layout
 
 ```
 src/paliquor/
-  config.py        # settings: rate limits, user-agent, contact, TTLs
-  http_client.py   # polite throttled HTTP client (catalog fetches)
-  models.py        # SQLAlchemy models
-  db.py            # engine/session helpers
-  catalog.py       # parse product pages -> Product (UPC, price, ...)
-  enumerate.py     # Playwright: discover bourbon/whiskey SKUs by category
-  inventory.py     # Playwright: per-store availability, cached
-  stores.py        # store directory (county -> stores)
-  api.py           # FastAPI app
+  config.py        # settings: rate limit, user-agent + contact, TTLs, categories
+  http_client.py   # polite throttled + cached HTTP client (catalog fetches)
+  models.py        # SQLAlchemy models (products, upcs, stores, inventory cache)
+  db.py            # engine / session helpers
+  enumerate.py     # discover SKUs by category via HTTP sort-union (no browser)
+  catalog.py       # parse a product page -> UPCs, price, size, stock
+  scraper.py       # orchestrate: enumerate -> parse -> upsert
+  stores.py        # store directory: PA counties, CSV loader
+  store_import.py  # import stores from OpenStreetMap + FCC county lookup
+  browser.py       # shared Playwright context (best-effort per-store check only)
+  inventory.py     # statewide signal + best-effort, cached per-store check
+  api.py           # FastAPI app (JSON API + serves the web UI)
   cli.py           # command-line entrypoints
-web/               # static frontend
-data/              # sqlite db + http cache (gitignored)
+web/               # static frontend (index.html, styles.css, app.js)
+data/              # sqlite db, http/osm/geo cache, seed CSVs (db+cache gitignored)
 ```
 
 ## Quick start
@@ -52,23 +82,54 @@ data/              # sqlite db + http cache (gitignored)
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e .
-playwright install chromium
+playwright install chromium      # only needed for the best-effort per-store check
 
-# set your contact address so requests identify honestly
-copy .env.example .env   # then edit CONTACT_EMAIL
+copy .env.example .env           # then set CONTACT_EMAIL so requests identify honestly
 
 python -m paliquor.cli init-db
-python -m paliquor.cli refresh-catalog        # discover + parse bourbon/whiskey
+python -m paliquor.cli refresh-catalog        # bourbon (default)
 python -m paliquor.cli import-stores          # store directory from OpenStreetMap
-uvicorn paliquor.api:app --reload             # serve API + frontend
+uvicorn paliquor.api:app --reload             # serve API + frontend at http://127.0.0.1:8000
 ```
 
-### Store directory
-
-`import-stores` pulls from OpenStreetMap (free, but incomplete in some counties).
-For complete, authoritative coverage of all ~568 stores, load the official PLCB
-list — see [STORES.md](STORES.md):
+## CLI reference
 
 ```powershell
-python -m paliquor.cli import-stores-csv path\to\official_stores.csv --replace
+# Catalog
+python -m paliquor.cli refresh-catalog                       # bourbon (152)
+python -m paliquor.cli refresh-catalog --categories 152,156,153,157,159,158,160,161,162
+python -m paliquor.cli refresh-catalog --limit 50            # cap per category (testing)
+
+# Stores
+python -m paliquor.cli import-stores                         # from OpenStreetMap (free, partial)
+python -m paliquor.cli import-stores-csv stores.csv --replace # official PLCB list (see STORES.md)
+
+# Inspect
+python -m paliquor.cli stats                                 # product / UPC counts by category
 ```
+
+Whiskey category codes: `152` Bourbon · `156` Rye · `157` American · `159` Irish
+· `158` Japanese · `153` Scotch · `160` Flavored · `161` Canadian · `162` More
+Imported.
+
+## API
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/products?q=&category=&sort=&limit=&offset=` | search/list (name or UPC; sort `name`/`price_asc`/`price_desc`) |
+| `GET /api/products/{code}` | one product with UPCs + statewide availability |
+| `GET /api/products/{code}/availability?store_code=` | statewide + best-effort per-store |
+| `GET /api/counties` | PA counties with store counts |
+| `GET /api/counties/{county}/stores` | stores in a county |
+| `GET /api/meta` | catalog stats + data-source disclosure |
+
+## Configuration (`.env`)
+
+| Var | Default | Meaning |
+|-----|---------|---------|
+| `CONTACT_EMAIL` | — | included in the User-Agent so the site can reach you |
+| `PROJECT_URL` | — | included in the User-Agent |
+| `MIN_REQUEST_INTERVAL` | `2.0` | seconds between catalog HTTP requests |
+| `CATALOG_TTL_HOURS` | `168` | catalog cache lifetime |
+| `INVENTORY_TTL_HOURS` | `6` | per-store check cache lifetime |
+| `BROWSER_CONCURRENCY` | `1` | headless-browser parallelism (keep low) |
