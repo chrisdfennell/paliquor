@@ -46,6 +46,7 @@ class Product(Base):
     volume_ml: Mapped[float | None] = mapped_column(Float)   # parsed from size
     image_url: Mapped[str | None] = mapped_column(String)
     baseline_stock_status: Mapped[str | None] = mapped_column(String)
+    first_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     upcs: Mapped[list["Upc"]] = relationship(

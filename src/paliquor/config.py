@@ -34,6 +34,27 @@ WHISKEY_CATEGORIES: dict[str, str] = {
 DEFAULT_CATEGORIES = ["152"]
 
 
+# Curated "allocated" / chase bottles for the radar. Matched as case-insensitive
+# substrings of the product name. Kept focused so the radar means something.
+ALLOCATED_PATTERNS = [
+    "Blanton's", "Weller", "E.H. Taylor", "Colonel E.H. Taylor", "Eagle Rare",
+    "George T. Stagg", "Stagg", "Sazerac 18", "William Larue Weller",
+    "Thomas H. Handy", "Pappy Van Winkle", "Van Winkle", "Old Rip Van Winkle",
+    "Booker's", "Four Roses Limited", "Four Roses Small Batch Select",
+    "Michter's 10", "Michter's 20", "Michter's 25", "Michter's Toasted",
+    "Old Forester Birthday", "Elijah Craig Barrel Proof", "Elijah Craig 18",
+    "Elijah Craig 23", "Henry McKenna 10", "Larceny Barrel Proof",
+    "Wild Turkey Rare Breed", "Wild Turkey Master's Keep", "Russell's Reserve 13",
+    "1792 Full Proof", "Kentucky Owl", "Garrison Brothers", "Woodinville",
+]
+_ALLOCATED_LOWER = [p.lower() for p in ALLOCATED_PATTERNS]
+
+
+def is_allocated(name: str | None) -> bool:
+    n = (name or "").lower()
+    return any(p in n for p in _ALLOCATED_LOWER)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
@@ -57,6 +78,19 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
+
+    # In-process nightly refresh. Off by default; when on, the API process
+    # re-scrapes the catalog daily at REFRESH_HOUR (local time) so price history
+    # accrues and alerts fire automatically. Empty categories = all whiskey.
+    scheduler_enabled: bool = False
+    refresh_hour: int = 3
+    refresh_categories: str = ""
+
+    @property
+    def scheduled_categories(self) -> list[str]:
+        if self.refresh_categories.strip():
+            return [c.strip() for c in self.refresh_categories.split(",") if c.strip()]
+        return list(WHISKEY_CATEGORIES.keys())
 
     @property
     def user_agent(self) -> str:

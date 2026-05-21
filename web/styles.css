@@ -30,6 +30,7 @@ body.dark .badge.in { background: #1e3a2a; }
 body.dark .badge.out { background: #3a1e1e; }
 body.dark .badge.unk { background: #2e261d; }
 body.dark .tag.chair { background: #3a2f16; color: var(--gold); }
+body.dark .tag.alloc { background: #3a2020; color: #e88; }
 body.dark .tag.sale { background: #1e3a2a; }
 body.dark .store-banner { background: #2a2114; border-color: #4a3a1e; }
 body.dark .searchbar input, body.dark .searchbar select,
@@ -84,6 +85,7 @@ a:hover { text-decoration: underline; }
 /* tags / badges on cards */
 .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
 .tag { font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; letter-spacing: .2px; }
+.tag.alloc { background: #f1e0e0; color: #9c3535; }
 .tag.chair { background: #f3e8c8; color: #8a6d12; }
 .tag.sale { background: #e6f3ec; color: var(--green); }
 .tag.proof { background: #efeae2; color: var(--muted); }
@@ -112,6 +114,11 @@ a:hover { text-decoration: underline; }
 .county-list li button.active .count { color: #ffe9d4; }
 
 /* results */
+.quickviews { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip { border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  padding: 7px 14px; border-radius: 999px; cursor: pointer; font-size: .88rem; font-weight: 600; }
+.chip:hover { background: var(--bg); }
+.chip.active { background: var(--amber); color: #fff; border-color: var(--amber); }
 .result-meta { color: var(--muted); font-size: .9rem; margin-bottom: 14px; }
 .store-banner {
   background: #fff7ec; border: 1px solid #f0d9b5; border-radius: 10px; padding: 12px 14px;

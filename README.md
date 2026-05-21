@@ -124,6 +124,21 @@ python -m paliquor.cli stats                                 # product / UPC cou
 - **Watch & alerts** — `POST /api/products/{code}/watch {email, target_price?}`.
   After each refresh, watches that flip to in-stock or drop in price trigger an
   email (via SMTP if configured in `.env`, otherwise logged).
+- **Allocated radar** — a curated chase-bottle list (`ALLOCATED_PATTERNS` in
+  `config.py`) surfaced via `/api/radar` and the **🎯 Radar** quick-view, sorted
+  in-stock first. Filter the catalog with `allocated=true`.
+- **New arrivals & deals** — products carry `first_seen` (sort `newest`); the
+  **✨ New** and **💰 Deals** quick-views use that and the discount data.
+
+### Nightly refresh
+
+Two ways to keep data fresh (so history accrues and alerts fire):
+
+1. **In-process** — set `SCHEDULER_ENABLED=true` (and optionally `REFRESH_HOUR`)
+   in `.env`; the running API re-scrapes daily.
+2. **OS scheduler (recommended for heavier runs)** — point Windows Task
+   Scheduler at [scripts/refresh.ps1](scripts/refresh.ps1) (registration snippet
+   is in the script header).
 
 Whiskey category codes: `152` Bourbon · `156` Rye · `157` American · `159` Irish
 · `158` Japanese · `153` Scotch · `160` Flavored · `161` Canadian · `162` More
@@ -139,6 +154,7 @@ Imported.
 | `GET /api/products/{code}/history` | price/stock snapshots over time |
 | `POST /api/products/{code}/watch` `{email, target_price?}` | watch for restock / price drop |
 | `DELETE /api/products/{code}/watch?email=` · `GET /api/watches?email=` | manage watches |
+| `GET /api/radar?in_stock=` | allocated / chase bottles (Blanton's, Weller, Stagg…), in-stock first |
 | `GET /api/counties` | PA counties with store counts |
 | `GET /api/counties/{county}/stores` | stores in a county |
 | `GET /api/meta` | catalog stats + data-source disclosure |

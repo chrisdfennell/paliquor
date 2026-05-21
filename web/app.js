@@ -2,7 +2,7 @@
 
 const state = {
   q: "", sort: "name", category: "",
-  chairmans: false, on_sale: false, in_stock: false,
+  chairmans: false, on_sale: false, in_stock: false, allocated: false,
   limit: 60, offset: 0, total: 0,
   county: null, store: null,
 };
@@ -33,6 +33,7 @@ async function loadProducts(reset = true) {
   if (state.chairmans) params.set("chairmans", "true");
   if (state.on_sale) params.set("on_sale", "true");
   if (state.in_stock) params.set("in_stock", "true");
+  if (state.allocated) params.set("allocated", "true");
   const data = await api("/api/products?" + params);
   state.total = data.total;
   for (const p of data.items) $("#grid").insertAdjacentHTML("beforeend", card(p));
@@ -45,6 +46,7 @@ async function loadProducts(reset = true) {
 
 function tags(p) {
   const t = [];
+  if (p.is_allocated) t.push('<span class="tag alloc">🎯 Allocated</span>');
   if (p.is_chairmans) t.push('<span class="tag chair">Chairman\'s</span>');
   if (p.on_sale) t.push(`<span class="tag sale">${p.discount_pct}% off · save ${money(p.savings)}</span>`);
   if (p.proof) t.push(`<span class="tag proof">${p.proof}°</span>`);
@@ -251,6 +253,23 @@ $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; load
 $("#f-sale").addEventListener("change", (e) => { state.on_sale = e.target.checked; loadProducts(true); });
 $("#f-instock").addEventListener("change", (e) => { state.in_stock = e.target.checked; loadProducts(true); });
 $("#more").addEventListener("click", () => loadProducts(false));
+
+// ---- quick views (presets over the same /api/products endpoint) ----
+function applyQuickView(view) {
+  state.allocated = false; state.on_sale = false;
+  if (view === "radar") { state.allocated = true; state.sort = "name"; }
+  else if (view === "new") { state.sort = "newest"; }
+  else if (view === "deals") { state.on_sale = true; state.sort = "discount_desc"; }
+  else { state.sort = $("#sort").value || "name"; }
+  $("#sort").value = state.sort;
+  $("#f-sale").checked = state.on_sale;
+  document.querySelectorAll("#quickviews .chip").forEach((c) =>
+    c.classList.toggle("active", c.dataset.view === view));
+  loadProducts(true);
+}
+document.querySelectorAll("#quickviews .chip").forEach((c) => {
+  c.onclick = () => applyQuickView(c.dataset.view);
+});
 
 // ---- dark mode (persisted) ----
 function applyTheme(theme) {

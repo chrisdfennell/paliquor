@@ -40,7 +40,9 @@ def _upsert_product(session, parsed, category_code: str) -> None:
         select(Product).where(Product.product_code == parsed.product_code)
     )
     if product is None:
-        product = Product(product_code=parsed.product_code)
+        from datetime import datetime, timezone
+        product = Product(product_code=parsed.product_code,
+                          first_seen=datetime.now(timezone.utc))
         session.add(product)
 
     product.name = parsed.name or product.name

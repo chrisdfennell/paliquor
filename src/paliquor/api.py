@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, or_, select
 
-from .config import WHISKEY_CATEGORIES
+from .config import ALLOCATED_PATTERNS, WHISKEY_CATEGORIES, is_allocated
 from .db import init_db, session_scope
 from .inventory import check_store_availability, statewide
 from .models import PriceSnapshot, Product, Store, Upc, Watch
@@ -33,6 +33,8 @@ app = FastAPI(title="PaLiquor — PA Bourbon Finder", version="0.1.0")
 def _startup() -> None:
     init_db()
     seed_stores()
+    from . import scheduler
+    scheduler.start()
 
 
 def _product_dict(p: Product) -> dict:
@@ -47,6 +49,8 @@ def _product_dict(p: Product) -> dict:
         "savings": round(p.list_price - p.sale_price, 2) if on_sale else None,
         "discount_pct": round(100 * (p.list_price - p.sale_price) / p.list_price) if on_sale else None,
         "is_chairmans": p.is_chairmans,
+        "is_allocated": is_allocated(p.name),
+        "first_seen": p.first_seen.isoformat() if p.first_seen else None,
         "proof": p.proof,
         "size": p.size,
         "volume_ml": p.volume_ml,
@@ -97,14 +101,20 @@ def _sort_clauses(sort: str) -> list:
         "savings_desc":  [savings.is_(None), savings.desc()],    # biggest $ off
         "size_desc":     [P.volume_ml.is_(None), P.volume_ml.desc()],  # largest bottle
         "size_asc":      [P.volume_ml.is_(None), P.volume_ml.asc()],
+        "newest":        [P.first_seen.is_(None), P.first_seen.desc()],
     }
     return options.get(sort, options["name"])
 
 
 SORT_KEYS = (
     "name|name_desc|price_asc|price_desc|value|value_desc|"
-    "proof_desc|proof_asc|discount_desc|savings_desc|size_desc|size_asc"
+    "proof_desc|proof_asc|discount_desc|savings_desc|size_desc|size_asc|newest"
 )
+
+
+def _allocated_filter():
+    """SQL OR-clause matching any allocated chase-bottle pattern by name."""
+    return or_(*[Product.name.ilike(f"%{p}%") for p in ALLOCATED_PATTERNS])
 
 
 @app.get("/api/products")
@@ -115,6 +125,7 @@ def list_products(
     chairmans: bool = Query(False, description="only Chairman's Selection"),
     on_sale: bool = Query(False, description="only discounted items"),
     in_stock: bool = Query(False, description="hide out-of-stock items"),
+    allocated: bool = Query(False, description="only allocated / chase bottles"),
     limit: int = Query(60, le=250),
     offset: int = 0,
 ) -> dict:
@@ -122,6 +133,8 @@ def list_products(
         stmt = select(Product)
         if category:
             stmt = stmt.where(Product.category_code == category)
+        if allocated:
+            stmt = stmt.where(_allocated_filter())
         if chairmans:
             stmt = stmt.where(Product.is_chairmans.is_(True))
         if on_sale:
@@ -192,6 +205,22 @@ def availability(code: str, store_code: str | None = None) -> dict:
             "fetched_at": st.fetched_at.isoformat(),
         }
     return result
+
+
+@app.get("/api/radar")
+def radar(in_stock: bool = Query(False, description="only show ones in stock")) -> dict:
+    """Allocated / chase bottles, in-stock first — the bourbon-hunter view."""
+    with session_scope() as s:
+        stmt = select(Product).where(_allocated_filter())
+        if in_stock:
+            stmt = stmt.where(Product.baseline_stock_status == "IN_STOCK")
+        # In-stock first, then name.
+        stmt = stmt.order_by(
+            (Product.baseline_stock_status != "IN_STOCK"), Product.name)
+        rows = list(s.scalars(stmt))
+        items = [_product_dict(p) for p in rows]
+    in_stock_n = sum(1 for i in items if (i["statewide_status"] or "") == "IN_STOCK")
+    return {"total": len(items), "in_stock": in_stock_n, "items": items}
 
 
 @app.get("/api/products/{code}/history")

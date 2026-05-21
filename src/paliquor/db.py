@@ -18,6 +18,7 @@ _PRODUCT_ADDED_COLUMNS = {
     "is_chairmans": "BOOLEAN DEFAULT 0",
     "proof": "FLOAT",
     "volume_ml": "FLOAT",
+    "first_seen": "DATETIME",
 }
 
 _engine = None
@@ -39,9 +40,20 @@ def _migrate(engine) -> None:
         return
     existing = {c["name"] for c in insp.get_columns("products")}
     with engine.begin() as conn:
+        added = []
         for col, ddl in _PRODUCT_ADDED_COLUMNS.items():
             if col not in existing:
                 conn.execute(text(f"ALTER TABLE products ADD COLUMN {col} {ddl}"))
+                added.append(col)
+        # Backfill first_seen from the earliest snapshot (else last_seen) so the
+        # "new arrivals" view is sensible on existing data.
+        if "first_seen" in added:
+            conn.execute(text(
+                "UPDATE products SET first_seen = COALESCE("
+                "(SELECT MIN(captured_at) FROM price_snapshots "
+                " WHERE price_snapshots.product_id = products.id), last_seen) "
+                "WHERE first_seen IS NULL"
+            ))
 
 
 def init_db() -> None:
