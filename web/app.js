@@ -2,7 +2,7 @@
 
 const state = {
   q: "", sort: "name", category: "",
-  chairmans: false, on_sale: false,
+  chairmans: false, on_sale: false, in_stock: false,
   limit: 60, offset: 0, total: 0,
   county: null, store: null,
 };
@@ -32,6 +32,7 @@ async function loadProducts(reset = true) {
   if (state.q) params.set("q", state.q);
   if (state.chairmans) params.set("chairmans", "true");
   if (state.on_sale) params.set("on_sale", "true");
+  if (state.in_stock) params.set("in_stock", "true");
   const data = await api("/api/products?" + params);
   state.total = data.total;
   for (const p of data.items) $("#grid").insertAdjacentHTML("beforeend", card(p));
@@ -248,7 +249,25 @@ $("#search").addEventListener("input", (e) => {
 $("#category").addEventListener("change", (e) => { state.category = e.target.value; loadProducts(true); });
 $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; loadProducts(true); });
 $("#f-sale").addEventListener("change", (e) => { state.on_sale = e.target.checked; loadProducts(true); });
+$("#f-instock").addEventListener("change", (e) => { state.in_stock = e.target.checked; loadProducts(true); });
 $("#more").addEventListener("click", () => loadProducts(false));
+
+// ---- dark mode (persisted) ----
+function applyTheme(theme) {
+  document.body.classList.toggle("dark", theme === "dark");
+  const btn = $("#theme-toggle");
+  if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+}
+(function initTheme() {
+  const saved = localStorage.getItem("paliquor-theme")
+    || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  applyTheme(saved);
+})();
+$("#theme-toggle").addEventListener("click", () => {
+  const next = document.body.classList.contains("dark") ? "light" : "dark";
+  localStorage.setItem("paliquor-theme", next);
+  applyTheme(next);
+});
 $("#drawer-close").addEventListener("click", closeDrawer);
 $("#drawer").addEventListener("click", (e) => { if (e.target.id === "drawer") closeDrawer(); });
 

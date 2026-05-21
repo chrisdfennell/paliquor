@@ -11,6 +11,32 @@
   --red: #b03030;
   --shadow: 0 1px 3px rgba(40,30,20,.08), 0 8px 24px rgba(40,30,20,.06);
 }
+body.dark {
+  --ink: #ece3d7;
+  --muted: #a99c8c;
+  --line: #3a3027;
+  --bg: #1a1510;
+  --card: #241d16;
+  --amber: #d77a35;
+  --amber-dark: #e08a45;
+  --gold: #d9a93a;
+  --green: #5fbf85;
+  --red: #e07a7a;
+  --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+}
+body.dark .hero { background: linear-gradient(180deg, #241d16, var(--bg)); }
+body.dark .was, body.dark .tag.proof { background: #2e261d; }
+body.dark .badge.in { background: #1e3a2a; }
+body.dark .badge.out { background: #3a1e1e; }
+body.dark .badge.unk { background: #2e261d; }
+body.dark .tag.chair { background: #3a2f16; color: var(--gold); }
+body.dark .tag.sale { background: #1e3a2a; }
+body.dark .store-banner { background: #2a2114; border-color: #4a3a1e; }
+body.dark .searchbar input, body.dark .searchbar select,
+body.dark .avail-box input, body.dark .avail-box select { background: var(--card); color: var(--ink); }
+/* product shots are typically on white; give them a clean tile on dark */
+body.dark .card .img, body.dark .d-img { background: #f4f0ea; border-radius: 8px; padding: 6px; }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
@@ -37,6 +63,9 @@ a:hover { text-decoration: underline; }
 .brand-text small { font-weight: 500; color: var(--muted); font-size: .72rem; letter-spacing: .3px; }
 .top-nav a { margin-left: 22px; color: var(--muted); font-weight: 600; font-size: .92rem; }
 .top-nav a:hover { color: var(--ink); text-decoration: none; }
+.theme-toggle { margin-left: 22px; background: none; border: 1px solid var(--line); border-radius: 8px;
+  padding: 5px 9px; cursor: pointer; font-size: 1rem; line-height: 1; }
+.theme-toggle:hover { background: var(--bg); }
 
 /* hero */
 .hero { background: linear-gradient(180deg, #fff, var(--bg)); border-bottom: 1px solid var(--line); padding: 38px 0 30px; }
@@ -114,7 +143,7 @@ a:hover { text-decoration: underline; }
 
 /* drawer */
 .drawer { position: fixed; inset: 0; background: rgba(20,15,10,.45); display: flex; justify-content: flex-end; z-index: 50; }
-.drawer-panel { width: min(460px, 100%); background: #fff; height: 100%; overflow: auto; padding: 26px; position: relative; box-shadow: -8px 0 30px rgba(0,0,0,.15); }
+.drawer-panel { width: min(460px, 100%); background: var(--card); color: var(--ink); height: 100%; overflow: auto; padding: 26px; position: relative; box-shadow: -8px 0 30px rgba(0,0,0,.15); }
 .drawer-close { position: absolute; top: 14px; right: 16px; border: 0; background: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); }
 .drawer h3 { margin: 0 8px 4px 0; font-size: 1.3rem; }
 .drawer .d-img { height: 200px; display: grid; place-items: center; margin: 10px 0; }

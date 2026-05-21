@@ -114,6 +114,7 @@ def list_products(
     sort: str = Query("name", pattern=f"^({SORT_KEYS})$"),
     chairmans: bool = Query(False, description="only Chairman's Selection"),
     on_sale: bool = Query(False, description="only discounted items"),
+    in_stock: bool = Query(False, description="hide out-of-stock items"),
     limit: int = Query(60, le=250),
     offset: int = 0,
 ) -> dict:
@@ -126,6 +127,8 @@ def list_products(
         if on_sale:
             stmt = stmt.where(Product.sale_price.is_not(None),
                               Product.sale_price < Product.list_price)
+        if in_stock:
+            stmt = stmt.where(Product.baseline_stock_status == "IN_STOCK")
         if q:
             like = f"%{q}%"
             # apostrophe-insensitive: strip ' from BOTH the name and the query so
