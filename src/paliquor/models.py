@@ -38,7 +38,12 @@ class Product(Base):
     category_label: Mapped[str | None] = mapped_column(String)
     varietal: Mapped[str | None] = mapped_column(String)
     size: Mapped[str | None] = mapped_column(String)
-    price: Mapped[float | None] = mapped_column(Float)
+    price: Mapped[float | None] = mapped_column(Float)       # current/active price
+    list_price: Mapped[float | None] = mapped_column(Float)  # original (pre-sale) price
+    sale_price: Mapped[float | None] = mapped_column(Float)  # set when discounted
+    is_chairmans: Mapped[bool] = mapped_column(default=False)  # Chairman's Selection
+    proof: Mapped[float | None] = mapped_column(Float)
+    volume_ml: Mapped[float | None] = mapped_column(Float)   # parsed from size
     image_url: Mapped[str | None] = mapped_column(String)
     baseline_stock_status: Mapped[str | None] = mapped_column(String)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -49,6 +54,16 @@ class Product(Base):
     inventory: Mapped[list["InventoryCache"]] = relationship(
         back_populates="product", cascade="all, delete-orphan"
     )
+    snapshots: Mapped[list["PriceSnapshot"]] = relationship(
+        back_populates="product", cascade="all, delete-orphan"
+    )
+
+    @property
+    def price_per_750(self) -> float | None:
+        """Normalized value: dollars per 750 mL. Lower = better value."""
+        if self.price and self.volume_ml:
+            return round(self.price * 750.0 / self.volume_ml, 2)
+        return None
 
 
 class Upc(Base):
@@ -74,6 +89,46 @@ class Store(Base):
     zip_code: Mapped[str | None] = mapped_column(String)
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
+
+
+class PriceSnapshot(Base):
+    """A point-in-time record of a product's price and stock, per refresh.
+
+    Powers price history and price-drop / restock detection. We only insert a
+    new row when something changed from the latest snapshot (or there is none).
+    """
+    __tablename__ = "price_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    price: Mapped[float | None] = mapped_column(Float)
+    stock_status: Mapped[str | None] = mapped_column(String)
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True
+    )
+
+    product: Mapped[Product] = relationship(back_populates="snapshots")
+
+
+class Watch(Base):
+    """A user's request to be alerted about one product.
+
+    Triggers when stock returns (OUT/UNKNOWN -> IN_STOCK) or price drops
+    (optionally below ``target_price``).
+    """
+    __tablename__ = "watches"
+    __table_args__ = (UniqueConstraint("email", "product_id", name="uq_watch_email_product"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String, index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    target_price: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    # Last state we notified on, to avoid duplicate alerts.
+    last_status: Mapped[str | None] = mapped_column(String)
+    last_price: Mapped[float | None] = mapped_column(Float)
+
+    product: Mapped[Product] = relationship()
 
 
 class InventoryCache(Base):

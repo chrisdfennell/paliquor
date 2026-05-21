@@ -104,9 +104,26 @@ python -m paliquor.cli refresh-catalog --limit 50            # cap per category 
 python -m paliquor.cli import-stores                         # from OpenStreetMap (free, partial)
 python -m paliquor.cli import-stores-csv stores.csv --replace # official PLCB list (see STORES.md)
 
+# Alerts (restock / price-drop on watched bottles)
+python -m paliquor.cli check-alerts                          # evaluate watches, email/log alerts
+# (also runs automatically at the end of every refresh-catalog)
+
 # Inspect
 python -m paliquor.cli stats                                 # product / UPC counts by category
 ```
+
+## Tracking, value & alerts
+
+- **Price/stock history** — every `refresh-catalog` records a `PriceSnapshot`
+  per product when its price or stock changes. `GET /api/products/{code}/history`
+  feeds the sparkline in the product drawer. Run refresh on a schedule (e.g.
+  Task Scheduler / cron) to build history over time.
+- **Value & discounts** — products carry `list_price`/`sale_price` (so we flag
+  discounts and savings), `proof`, and `volume_ml`. Sort by `value`
+  ($/750 mL) or `proof_desc`; filter `on_sale=true`.
+- **Watch & alerts** — `POST /api/products/{code}/watch {email, target_price?}`.
+  After each refresh, watches that flip to in-stock or drop in price trigger an
+  email (via SMTP if configured in `.env`, otherwise logged).
 
 Whiskey category codes: `152` Bourbon · `156` Rye · `157` American · `159` Irish
 · `158` Japanese · `153` Scotch · `160` Flavored · `161` Canadian · `162` More
@@ -116,9 +133,12 @@ Imported.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/products?q=&category=&sort=&limit=&offset=` | search/list (name or UPC; sort `name`/`price_asc`/`price_desc`) |
+| `GET /api/products?q=&category=&sort=&chairmans=&on_sale=&limit=&offset=` | search/list (name or UPC; sort `name`/`price_asc`/`price_desc`/`value`/`proof_desc`) |
 | `GET /api/products/{code}` | one product with UPCs + statewide availability |
 | `GET /api/products/{code}/availability?store_code=` | statewide + best-effort per-store |
+| `GET /api/products/{code}/history` | price/stock snapshots over time |
+| `POST /api/products/{code}/watch` `{email, target_price?}` | watch for restock / price drop |
+| `DELETE /api/products/{code}/watch?email=` · `GET /api/watches?email=` | manage watches |
 | `GET /api/counties` | PA counties with store counts |
 | `GET /api/counties/{county}/stores` | stores in a county |
 | `GET /api/meta` | catalog stats + data-source disclosure |

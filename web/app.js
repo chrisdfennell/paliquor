@@ -1,13 +1,14 @@
 "use strict";
 
 const state = {
-  q: "", sort: "name", category: "152",
+  q: "", sort: "name", category: "",
+  chairmans: false, on_sale: false,
   limit: 60, offset: 0, total: 0,
   county: null, store: null,
 };
 
 const $ = (sel) => document.querySelector(sel);
-const api = (path) => fetch(path).then((r) => {
+const api = (path, opts) => fetch(path, opts).then((r) => {
   if (!r.ok) throw new Error(r.status);
   return r.json();
 });
@@ -19,34 +20,54 @@ function badge(status) {
   return '<span class="badge unk">Unknown</span>';
 }
 function money(p) { return p == null ? "—" : "$" + Number(p).toFixed(2); }
-function esc(s) { return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function esc(s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
 // ---- product grid ----
 async function loadProducts(reset = true) {
   if (reset) { state.offset = 0; $("#grid").innerHTML = ""; }
   const params = new URLSearchParams({
-    sort: state.sort, limit: state.limit, offset: state.offset, category: state.category,
+    sort: state.sort, limit: state.limit, offset: state.offset,
   });
+  if (state.category) params.set("category", state.category);
   if (state.q) params.set("q", state.q);
+  if (state.chairmans) params.set("chairmans", "true");
+  if (state.on_sale) params.set("on_sale", "true");
   const data = await api("/api/products?" + params);
   state.total = data.total;
   for (const p of data.items) $("#grid").insertAdjacentHTML("beforeend", card(p));
   $("#result-meta").textContent =
-    `${data.total} bourbon${data.total === 1 ? "" : "s"}` + (state.q ? ` matching “${state.q}”` : "");
+    `${data.total} bottle${data.total === 1 ? "" : "s"}` + (state.q ? ` matching “${state.q}”` : "");
   state.offset += data.items.length;
   $("#more").classList.toggle("hidden", state.offset >= state.total);
   bindCards();
 }
 
+function tags(p) {
+  const t = [];
+  if (p.is_chairmans) t.push('<span class="tag chair">Chairman\'s</span>');
+  if (p.on_sale) t.push(`<span class="tag sale">${p.discount_pct}% off · save ${money(p.savings)}</span>`);
+  if (p.proof) t.push(`<span class="tag proof">${p.proof}°</span>`);
+  return t.length ? `<div class="tags">${t.join("")}</div>` : "";
+}
+
+function priceBlock(p) {
+  if (p.on_sale) {
+    return `<span class="price">${money(p.price)}</span> <span class="was">${money(p.list_price)}</span>`;
+  }
+  return `<span class="price">${money(p.price)}</span>`;
+}
+
 function card(p) {
   const upc = p.upcs && p.upcs.length ? `<div class="upc">UPC ${esc(p.upcs[0])}</div>` : "";
   const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" loading="lazy">` : "";
+  const value = p.price_per_750 ? `<div class="value">${money(p.price_per_750)}/750mL</div>` : "";
   return `<article class="card" data-code="${esc(p.product_code)}">
     <div class="img">${img}</div>
+    ${tags(p)}
     <p class="nm">${esc(p.name || "Unnamed")}</p>
     <div class="meta">${esc(p.size || "")} ${p.varietal ? "· " + esc(p.varietal) : ""}</div>
-    ${upc}
-    <div class="row"><span class="price">${money(p.price)}</span>${badge(p.statewide_status)}</div>
+    ${upc}${value}
+    <div class="row">${priceBlock(p)}${badge(p.statewide_status)}</div>
   </article>`;
 }
 
@@ -54,6 +75,21 @@ function bindCards() {
   document.querySelectorAll(".card").forEach((el) => {
     el.onclick = () => openDrawer(el.dataset.code);
   });
+}
+
+// ---- categories (filter dropdown) ----
+async function loadMeta() {
+  try {
+    const m = await api("/api/meta");
+    $("#stat-line").textContent = `${m.products} products · ${m.upcs} UPCs indexed.`;
+    const sel = $("#category");
+    sel.innerHTML = '<option value="">All whiskey</option>' +
+      Object.entries(m.categories).map(([code, label]) =>
+        `<option value="${esc(code)}">${esc(label)}</option>`).join("");
+    sel.value = "152"; state.category = "152";  // default to bourbon
+    if (m.disclosure) $("#disclosure").textContent =
+      m.disclosure + " This is an independent informational tool, not affiliated with the PLCB.";
+  } catch { /* keep defaults */ }
 }
 
 // ---- counties ----
@@ -96,13 +132,38 @@ function clearCounty() {
   document.querySelectorAll("#county-list button").forEach((b) => b.classList.remove("active"));
 }
 
+// ---- price history sparkline (inline SVG) ----
+function sparkline(history) {
+  const pts = history.filter((h) => h.price != null);
+  if (pts.length < 2) return '<p class="note">Not enough history yet — price tracking starts now.</p>';
+  const w = 380, h = 60, pad = 6;
+  const prices = pts.map((p) => p.price);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const span = max - min || 1;
+  const x = (i) => pad + (i * (w - 2 * pad)) / (pts.length - 1);
+  const y = (v) => h - pad - ((v - min) / span) * (h - 2 * pad);
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.price).toFixed(1)}`).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <path d="${d}" fill="none" stroke="#a8541a" stroke-width="2"/>
+  </svg>
+  <div class="spark-legend"><span>${money(min)}</span><span>${pts.length} points</span><span>${money(max)}</span></div>`;
+}
+
 // ---- drawer / detail ----
 async function openDrawer(code) {
   const d = $("#drawer");
   d.classList.remove("hidden");
   $("#drawer-body").innerHTML = "<p>Loading…</p>";
-  const p = await api(`/api/products/${code}`);
+  const [p, hist] = await Promise.all([
+    api(`/api/products/${code}`),
+    api(`/api/products/${code}/history`).catch(() => ({ history: [] })),
+  ]);
   const upcs = (p.upcs || []).map((u) => `<li>${esc(u)}</li>`).join("") || "<li class='muted'>—</li>";
+
+  const priceRow = p.on_sale
+    ? `<span class="price">${money(p.price)}</span> <span class="was">${money(p.list_price)}</span> <span class="tag sale">Save ${money(p.savings)}</span>`
+    : `<span class="price">${money(p.price)}</span>`;
+
   const storeCheck = state.store ? `
     <div class="avail-box">
       <h4>Check a store</h4>
@@ -119,12 +180,43 @@ async function openDrawer(code) {
     <h3>${esc(p.name || "")}</h3>
     <div class="muted">${esc(p.size || "")} ${p.varietal ? "· " + esc(p.varietal) : ""} · ${esc(p.category || "")}</div>
     <div class="d-img">${p.image_url ? `<img src="${esc(p.image_url)}" alt="">` : ""}</div>
-    <div class="kv"><span>Price</span><span class="price">${money(p.price)}</span></div>
+    ${tags(p)}
+    <div class="kv"><span>Price</span><span>${priceRow}</span></div>
+    ${p.price_per_750 ? `<div class="kv"><span>Value</span><span>${money(p.price_per_750)} / 750mL</span></div>` : ""}
+    ${p.proof ? `<div class="kv"><span>Proof</span><span>${p.proof}° (${(p.proof / 2).toFixed(1)}% ABV)</span></div>` : ""}
     <div class="kv"><span>Statewide</span><span>${badge(p.statewide_status)}</span></div>
     <div class="kv"><span>Product code</span><span>${esc(p.product_code)}</span></div>
     <div><div class="muted" style="margin-top:10px">UPC(s)</div><ul class="upclist">${upcs}</ul></div>
+
+    <div class="hist-box">
+      <h4>Price history</h4>
+      ${sparkline(hist.history || [])}
+    </div>
+
+    <div class="avail-box">
+      <h4>Watch this bottle</h4>
+      <p class="note">Get an email when it’s back in stock statewide or the price drops.</p>
+      <input id="watch-email" type="email" placeholder="you@example.com" />
+      <button class="btn" id="watch-btn" style="margin-top:8px">Watch</button>
+      <div id="watch-result" class="note"></div>
+    </div>
+
     <p><a href="${esc(p.url)}" target="_blank" rel="noopener">View on Fine Wine &amp; Good Spirits ↗</a></p>
     ${storeCheck}`;
+
+  $("#watch-btn").onclick = async () => {
+    const email = $("#watch-email").value.trim();
+    const out = $("#watch-result");
+    if (!email || !email.includes("@")) { out.textContent = "Enter a valid email."; return; }
+    out.textContent = "Saving…";
+    try {
+      await api(`/api/products/${code}/watch`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      out.textContent = "✓ Watching. You’ll be emailed on a restock or price drop.";
+    } catch { out.textContent = "Couldn’t save the watch."; }
+  };
 
   if (state.store) {
     $("#check-btn").onclick = async () => {
@@ -138,39 +230,30 @@ async function openDrawer(code) {
             ? `<br><a href="${esc(st.verify_url)}" target="_blank" rel="noopener">Confirm at this store on Fine Wine &amp; Good Spirits ↗</a>`
             : "";
           out.innerHTML = `<b>${esc(st.name || st.store_code)}:</b> ${badge(st.status)} ${st.quantity != null ? "(" + st.quantity + ")" : ""}<br>${esc(st.note || st.source || "")}${link}`;
-        } else {
-          out.textContent = "No store result.";
-        }
-      } catch (e) {
-        out.textContent = "Live check unavailable right now.";
-      }
+        } else { out.textContent = "No store result."; }
+      } catch { out.textContent = "Live check unavailable right now."; }
     };
   }
 }
 
 function closeDrawer() { $("#drawer").classList.add("hidden"); }
 
-// ---- meta + wiring ----
-async function loadMeta() {
-  try {
-    const m = await api("/api/meta");
-    $("#stat-line").textContent = `${m.products} products · ${m.upcs} UPCs indexed.`;
-    $("#disclosure").textContent = m.disclosure ? m.disclosure +
-      " This is an independent informational tool, not affiliated with the PLCB." : $("#disclosure").textContent;
-  } catch { /* keep default */ }
-}
-
+// ---- wiring ----
 let searchTimer;
 $("#search").addEventListener("input", (e) => {
   clearTimeout(searchTimer);
   state.q = e.target.value.trim();
   searchTimer = setTimeout(() => loadProducts(true), 250);
 });
+$("#category").addEventListener("change", (e) => { state.category = e.target.value; loadProducts(true); });
 $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; loadProducts(true); });
+$("#f-sale").addEventListener("change", (e) => { state.on_sale = e.target.checked; loadProducts(true); });
 $("#more").addEventListener("click", () => loadProducts(false));
 $("#drawer-close").addEventListener("click", closeDrawer);
 $("#drawer").addEventListener("click", (e) => { if (e.target.id === "drawer") closeDrawer(); });
 
-loadMeta();
-loadCounties();
-loadProducts(true);
+(async () => {
+  await loadMeta();      // sets category options + default
+  loadCounties();
+  loadProducts(true);
+})();

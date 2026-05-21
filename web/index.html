@@ -28,12 +28,35 @@
       <p class="sub">Search the Fine Wine &amp; Good Spirits catalog by name or UPC — with prices,
         sizes, and availability. <strong id="stat-line">Loading catalog…</strong></p>
       <div class="searchbar">
-        <input id="search" type="search" placeholder="Search bourbon by name or UPC (e.g. Maker's Mark, 081128...)" />
+        <input id="search" type="search" placeholder="Search by name or UPC (e.g. Maker's Mark, 081128...)" />
+        <select id="category" aria-label="Category"></select>
         <select id="sort">
-          <option value="name">Sort: Name</option>
-          <option value="price_asc">Price: Low to High</option>
-          <option value="price_desc">Price: High to Low</option>
+          <optgroup label="Name">
+            <option value="name">Name: A to Z</option>
+            <option value="name_desc">Name: Z to A</option>
+          </optgroup>
+          <optgroup label="Price">
+            <option value="price_asc">Price: Low to High</option>
+            <option value="price_desc">Price: High to Low</option>
+            <option value="value">Best value ($/750mL)</option>
+            <option value="value_desc">Most premium ($/750mL)</option>
+          </optgroup>
+          <optgroup label="Deals">
+            <option value="discount_desc">Biggest discount (%)</option>
+            <option value="savings_desc">Biggest savings ($)</option>
+          </optgroup>
+          <optgroup label="Proof">
+            <option value="proof_desc">Proof: High to Low</option>
+            <option value="proof_asc">Proof: Low to High</option>
+          </optgroup>
+          <optgroup label="Size">
+            <option value="size_desc">Bottle: Largest first</option>
+            <option value="size_asc">Bottle: Smallest first</option>
+          </optgroup>
         </select>
+      </div>
+      <div class="filters">
+        <label><input type="checkbox" id="f-sale" /> On sale / discounted</label>
       </div>
     </div>
   </section>

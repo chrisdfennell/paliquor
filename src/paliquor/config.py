@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     request_timeout: float = 30.0
     database_url: str = f"sqlite:///{DATA_DIR / 'paliquor.db'}"
 
+    # Optional SMTP for restock / price-drop alert emails. If unset, alerts are
+    # logged instead of sent (so the feature works without credentials).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+
     @property
     def user_agent(self) -> str:
         # Honest, identifiable UA with a contact. Looks like a normal browser

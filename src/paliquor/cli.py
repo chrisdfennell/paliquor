@@ -61,6 +61,13 @@ def cmd_import_stores_csv(args) -> None:
     print(f"Loaded {n} stores from {path.name}.")
 
 
+def cmd_check_alerts(_args) -> None:
+    init_db()
+    from .alerts import evaluate_watches
+    n = evaluate_watches()
+    print(f"Evaluated watches; {n} alert(s) fired.")
+
+
 def cmd_stats(_args) -> None:
     init_db()
     with session_scope() as s:
@@ -95,6 +102,8 @@ def main() -> None:
     ic.add_argument("--replace", action="store_true",
                     help="clear existing stores first (recommended for the official list)")
     ic.set_defaults(func=cmd_import_stores_csv)
+
+    sub.add_parser("check-alerts").set_defaults(func=cmd_check_alerts)
 
     sub.add_parser("stats").set_defaults(func=cmd_stats)
 

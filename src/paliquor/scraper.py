@@ -14,9 +14,25 @@ from .config import WHISKEY_CATEGORIES, get_settings
 from .db import session_scope
 from .enumerate import enumerate_categories
 from .http_client import client
-from .models import Product, Upc
+from .models import PriceSnapshot, Product, Upc
 
 log = logging.getLogger("paliquor.scraper")
+
+
+def _record_snapshot(session, product: Product) -> None:
+    """Append a snapshot only when price or stock changed since the last one."""
+    latest = session.scalar(
+        select(PriceSnapshot)
+        .where(PriceSnapshot.product_id == product.id)
+        .order_by(PriceSnapshot.captured_at.desc())
+    )
+    if (latest is None
+            or latest.price != product.price
+            or latest.stock_status != product.baseline_stock_status):
+        session.add(PriceSnapshot(
+            product_id=product.id, price=product.price,
+            stock_status=product.baseline_stock_status,
+        ))
 
 
 def _upsert_product(session, parsed, category_code: str) -> None:
@@ -30,6 +46,11 @@ def _upsert_product(session, parsed, category_code: str) -> None:
     product.name = parsed.name or product.name
     product.url = parsed.url or product.url
     product.price = parsed.price
+    product.list_price = parsed.list_price
+    product.sale_price = parsed.sale_price
+    product.is_chairmans = parsed.is_chairmans
+    product.proof = parsed.proof
+    product.volume_ml = parsed.volume_ml
     product.image_url = parsed.image_url
     product.varietal = parsed.varietal
     product.size = parsed.size
@@ -37,6 +58,8 @@ def _upsert_product(session, parsed, category_code: str) -> None:
     product.category_code = category_code
     product.category_label = WHISKEY_CATEGORIES.get(category_code)
     session.flush()
+
+    _record_snapshot(session, product)
 
     existing = {u.code for u in product.upcs}
     for code in parsed.upcs:
@@ -65,4 +88,12 @@ def refresh_catalog(category_codes: list[str], limit: int | None = None) -> dict
                 log.warning("failed %s: %s", item.product_code, exc)
 
     client().close()
+
+    # After refreshing the catalog, fire any restock / price-drop alerts.
+    try:
+        from .alerts import evaluate_watches
+        stats["alerts"] = evaluate_watches()
+    except Exception as exc:  # alerts must never break a refresh
+        log.warning("alert evaluation failed: %s", exc)
+
     return stats
